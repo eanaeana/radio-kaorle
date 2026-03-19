@@ -1139,52 +1139,88 @@ async function fetchNowPlaying() {
 fetchNowPlaying();
 setInterval(fetchNowPlaying, CONFIG.pollInterval);
 
-/* ── CHAT ── */
-const messages = [
-  { name: 'kaorle', text: 'welcome to the chat — say hello!', time: 'now', isHost: true },
-];
+/* ── SUPABASE CHAT ── */
+const SUPABASE_URL = 'https://fwhmgnmmothemeijmtah.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3aG1nbm1tb3RoZW1laWptdGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MTM4NzUsImV4cCI6MjA4OTQ4OTg3NX0.618mtD3RPgXUyI-ehoqKL61hEVB7h68BDkqBfwVfk3A';
+const HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 
-function timeStr() {
-  const d = new Date();
+function timeStr(iso) {
+  const d = iso ? new Date(iso) : new Date();
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 }
 
-function renderMessages() {
+function renderMessages(msgs) {
   const container = document.getElementById('chat-messages');
+  const atBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 40;
   container.innerHTML = '';
-  messages.forEach(msg => {
+  msgs.forEach(msg => {
     const div = document.createElement('div');
     div.className = 'msg';
     div.innerHTML = `
       <div class="msg-meta">
-        <span class="msg-name${msg.isHost ? ' is-host' : ''}">${msg.name}</span>
-        <span class="msg-time">${msg.time}</span>
+        <span class="msg-name">${msg.name}</span>
+        <span class="msg-time">${timeStr(msg.created_at)}</span>
       </div>
       <div class="msg-text">${msg.text}</div>
     `;
     container.appendChild(div);
   });
-  container.scrollTop = container.scrollHeight;
+  if (atBottom) container.scrollTop = container.scrollHeight;
 }
 
-function sendMessage() {
-  const nameEl = document.getElementById('chat-name');
+async function loadMessages() {
+  /* delete messages older than 24 hours first */
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  await fetch(`${SUPABASE_URL}/rest/v1/messages?created_at=lt.${cutoff}`, {
+    method: 'DELETE', headers: HEADERS
+  });
+  /* fetch remaining messages */
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/messages?order=created_at.asc&limit=100`, {
+    headers: HEADERS
+  });
+  if (res.ok) {
+    const data = await res.json();
+    renderMessages(data);
+  }
+}
+
+async function sendMessage() {
+  const nameEl  = document.getElementById('chat-name');
   const inputEl = document.getElementById('chat-input');
   const name = (nameEl.value.trim() || 'anon').toLowerCase();
   const text = inputEl.value.trim();
   if (!text) return;
-
-  messages.push({ name, text, time: timeStr(), isHost: false });
   inputEl.value = '';
-  renderMessages();
+  /* optimistically add to UI */
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  div.innerHTML = `
+    <div class="msg-meta">
+      <span class="msg-name">${name}</span>
+      <span class="msg-time">${timeStr()}</span>
+    </div>
+    <div class="msg-text">${text}</div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  /* send to Supabase */
+  await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+    method: 'POST',
+    headers: { ...HEADERS, 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ name, text })
+  });
 }
+
+/* poll for new messages every 5 seconds */
+loadMessages();
+setInterval(loadMessages, 5000);
 
 document.getElementById('chat-send').addEventListener('click', sendMessage);
 document.getElementById('chat-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') sendMessage();
 });
 
-renderMessages();
 renderSchedule();
 </script>
 

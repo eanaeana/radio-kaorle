@@ -1121,7 +1121,7 @@ async function renderSchedule() {
         </div>
         <div>
           <div class="show-name">${ev.name}${isLive ? ' <span style="font-family:\'DM Mono\',monospace;font-size:0.6rem;color:var(--live);font-style:normal;letter-spacing:0.08em;">● live</span>' : ''}</div>
-          ${ev.host ? `<div class="show-host">${ev.host}</div>` : ''}
+          ${(ev.host || ev.location) ? `<div class="show-host">${[ev.host, ev.location && ev.location !== 'Vienna' ? ev.location : ''].filter(Boolean).join(' | ')}</div>` : ''}
         </div>
       `;
       list.appendChild(li);
@@ -1186,25 +1186,18 @@ async function fetchNowPlaying() {
       artistEl.textContent = artist;
     }
 
-    /* ── LOCATION ── read from now-playing schedule entry description, fall back to Vienna */
+    /* ── LOCATION ── read from current calendar event, fall back to Vienna */
     const scheduleEl = document.getElementById('stream-location');
     let location = 'Vienna';
-    if (isLive && data.live?.streamer_name) {
-      const streamerName = data.live.streamer_name.toLowerCase();
-      try {
-        const schedRes = await fetch('schedule.json?t=' + Date.now());
-        if (schedRes.ok) {
-          const events = await schedRes.json();
-          const now = new Date();
-          const liveEvent = events.find(e => {
-            const start = new Date(e.start);
-            const end = new Date(e.end);
-            return now >= start && now < end;
-          });
-          if (liveEvent?.location) location = liveEvent.location;
-        }
-      } catch(e) {}
-    }
+    try {
+      const schedRes = await fetch('schedule.json?t=' + Date.now());
+      if (schedRes.ok) {
+        const events = await schedRes.json();
+        const now = new Date();
+        const liveEvent = events.find(e => now >= new Date(e.start) && now < new Date(e.end));
+        if (liveEvent?.location) location = liveEvent.location;
+      }
+    } catch(e) {}
     scheduleEl.textContent = location;
 
   } catch (e) {

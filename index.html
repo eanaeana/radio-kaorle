@@ -127,8 +127,34 @@
     text-transform: uppercase;
     color: var(--mid);
     margin-bottom: 1rem;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
+
+  .listener-dots {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .listener-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--live);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  .listener-dot:nth-child(2) { animation-delay: 0.15s; }
+  .listener-dot:nth-child(3) { animation-delay: 0.30s; }
+  .listener-dot:nth-child(4) { animation-delay: 0.45s; }
+  .listener-dot:nth-child(5) { animation-delay: 0.60s; }
+  .listener-dot:nth-child(6) { animation-delay: 0.75s; }
+  .listener-dot:nth-child(7) { animation-delay: 0.90s; }
+  .listener-dot:nth-child(8) { animation-delay: 1.05s; }
+  .listener-dot:nth-child(9) { animation-delay: 1.20s; }
+  .listener-dot:nth-child(10) { animation-delay: 1.35s; }
 
   .now-playing {
     margin-bottom: 1.5rem;
@@ -549,7 +575,7 @@
 <main class="page">
 
   <header class="page-header">
-    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 209.5 209.5" style="height:110px;width:auto;display:block;margin-bottom:1rem;">
+    <svg id="header-figure" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 209.5 209.5" style="height:110px;width:auto;display:block;margin-bottom:1rem;transition:filter 0.6s ease;">
 <g>
 	<g>
 		<g>
@@ -993,7 +1019,7 @@
 		<path class="st43" d="M117.3,40c-0.1-2,3.4-12.6,7.5-17.4c6.7-7.8,14.3-7.8,15.4-8"/>
 	</g>
 </svg>
-    <h1>Radio Kaorle</h1>
+    <h1 id="header-title" style="transition:color 0.6s ease;">Radio Kaorle</h1>
     <p>DIY community radio at Pavillon 21 — Otto Wagner Areal, Vienna</p>
   </header>
 
@@ -1001,7 +1027,7 @@
 
     <!-- PLAYER -->
     <div class="player-block">
-      <span class="section-label">on air</span>
+      <span class="section-label">on air <span class="listener-dots" id="listener-dots"></span></span>
 
       <div id="live-indicator" class="live-badge" style="display:none;">
         <div class="live-dot"></div>
@@ -1170,6 +1196,11 @@ async function fetchNowPlaying() {
 
     const title = data.now_playing?.song?.title || '—';
     const artist = data.now_playing?.song?.artist || '';
+    const listeners = data.listeners?.current ?? 0;
+    const dotCount = listeners === 0 ? 0 : Math.min(Math.ceil(listeners / 10), 10);
+    const dotsEl = document.getElementById('listener-dots');
+    dotsEl.innerHTML = Array(dotCount).fill('<span class="listener-dot"></span>').join('');
+
     const isLive = data.live?.is_live || false;
 
     document.getElementById('track-title').textContent = title;

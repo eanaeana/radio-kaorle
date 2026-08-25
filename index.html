@@ -433,6 +433,63 @@
     color: var(--white);
   }
 
+  .chat-upload-btn {
+    border: none;
+    border-left: 1px solid var(--border);
+    background: none;
+    padding: 0.55rem 0.75rem;
+    cursor: pointer;
+    color: var(--mid);
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .chat-upload-btn:hover {
+    background: var(--black);
+    color: var(--white);
+  }
+
+  .chat-upload-btn svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+  }
+
+  .msg-image {
+    margin-top: 0.4rem;
+    max-width: 260px;
+    max-height: 200px;
+    object-fit: contain;
+    display: block;
+    cursor: pointer;
+  }
+
+  .upload-preview {
+    font-size: 0.62rem;
+    color: var(--mid);
+    padding: 0.3rem 0.75rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .upload-preview-clear {
+    cursor: pointer;
+    color: var(--mid);
+    background: none;
+    border: none;
+    font-size: 0.7rem;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .upload-preview-clear:hover { color: var(--black); }
+
   /* ── FOOTER ── */
   .page-footer {
     margin-top: 2.5rem;
@@ -937,7 +994,7 @@
 	</g>
 </svg>
     <h1>Radio Kaorle</h1>
-    <p>live from Pavillon 21 — Otto Wagner Areal, Vienna</p>
+    <p>DIY community radio at Pavillon 21 — Otto Wagner Areal, Vienna</p>
   </header>
 
   <div class="main-grid">
@@ -969,8 +1026,7 @@
       </div>
 
       <div class="stream-info">
-        <span data-label="format" id="stream-codec">mp3 / 128k</span>
-        <span data-label="hörer*innen" id="listener-count">17</span>
+        <span data-label="streaming from" id="stream-location">Vienna</span>
       </div>
 
       <audio id="audio-player" preload="none">
@@ -991,9 +1047,17 @@
     <div class="chat-block full-width">
       <span class="section-label">chat</span>
       <div class="chat-messages" id="chat-messages"></div>
+      <div id="upload-preview" class="upload-preview" style="display:none;">
+        <span id="upload-preview-name"></span>
+        <button class="upload-preview-clear" id="upload-clear" title="remove">✕</button>
+      </div>
       <div class="chat-form">
         <input class="chat-name-input" id="chat-name" type="text" placeholder="name" maxlength="20">
         <input class="chat-input" id="chat-input" type="text" placeholder="say something…" maxlength="200">
+        <button class="chat-upload-btn" id="upload-btn" title="upload photo">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </button>
+        <input type="file" id="file-input" accept="image/*,.gif" style="display:none;">
         <button class="chat-send" id="chat-send">→ send</button>
       </div>
     </div>
@@ -1107,12 +1171,8 @@ async function fetchNowPlaying() {
     const title = data.now_playing?.song?.title || '—';
     const artist = data.now_playing?.song?.artist || '';
     const isLive = data.live?.is_live || false;
-    const listeners = data.listeners?.current ?? '—';
-    const codec = data.station?.hls_is_default ? 'hls' : 'mp3';
-    const bitrate = data.station?.backend_type ? '128k' : '';
 
     document.getElementById('track-title').textContent = title;
-    document.getElementById('stream-codec').textContent = `${codec} / ${bitrate}`;
 
     const badge = document.getElementById('live-indicator');
     badge.style.display = isLive ? 'inline-flex' : 'none';
@@ -1126,13 +1186,31 @@ async function fetchNowPlaying() {
       artistEl.textContent = artist;
     }
 
-    const listenerEl = document.getElementById('listener-count');
-    listenerEl.setAttribute('data-label', 'hörer*innen');
-    listenerEl.textContent = listeners;
+    /* ── LOCATION ── read from now-playing schedule entry description, fall back to Vienna */
+    const scheduleEl = document.getElementById('stream-location');
+    let location = 'Vienna';
+    if (isLive && data.live?.streamer_name) {
+      const streamerName = data.live.streamer_name.toLowerCase();
+      try {
+        const schedRes = await fetch('schedule.json?t=' + Date.now());
+        if (schedRes.ok) {
+          const events = await schedRes.json();
+          const now = new Date();
+          const liveEvent = events.find(e => {
+            const start = new Date(e.start);
+            const end = new Date(e.end);
+            return now >= start && now < end;
+          });
+          if (liveEvent?.location) location = liveEvent.location;
+        }
+      } catch(e) {}
+    }
+    scheduleEl.textContent = location;
+
   } catch (e) {
-    document.getElementById('track-title').textContent = 'Kaorle Morning Show';
-    document.getElementById('track-artist').textContent = 'with toni';
-    document.getElementById('live-indicator').style.display = 'inline-flex';
+    document.getElementById('track-title').textContent = '—';
+    document.getElementById('track-artist').textContent = '';
+    document.getElementById('live-indicator').style.display = 'none';
   }
 }
 
@@ -1156,12 +1234,18 @@ function renderMessages(msgs) {
   msgs.forEach(msg => {
     const div = document.createElement('div');
     div.className = 'msg';
+    const imageHtml = msg.image_url
+      ? `<img class="msg-image" src="${msg.image_url}" alt="uploaded image" onclick="window.open('${msg.image_url}','_blank')">`
+      : '';
+    const textHtml = msg.text
+      ? `<div class="msg-text">${msg.text}</div>`
+      : '';
     div.innerHTML = `
       <div class="msg-meta">
         <span class="msg-name">${msg.name}</span>
         <span class="msg-time">${timeStr(msg.created_at)}</span>
       </div>
-      <div class="msg-text">${msg.text}</div>
+      ${textHtml}${imageHtml}
     `;
     container.appendChild(div);
   });
@@ -1169,19 +1253,61 @@ function renderMessages(msgs) {
 }
 
 async function loadMessages() {
-  /* delete messages older than 24 hours first */
+  /* delete messages older than 24 hours — non-blocking */
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  await fetch(`${SUPABASE_URL}/rest/v1/messages?created_at=lt.${cutoff}`, {
+  fetch(`${SUPABASE_URL}/rest/v1/messages?created_at=lt.${cutoff}`, {
     method: 'DELETE', headers: HEADERS
-  });
+  }).catch(() => {});
   /* fetch remaining messages */
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/messages?order=created_at.asc&limit=100`, {
-    headers: HEADERS
-  });
-  if (res.ok) {
-    const data = await res.json();
-    renderMessages(data);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/messages?order=created_at.asc&limit=1000`, {
+      headers: HEADERS
+    });
+    if (res.ok) {
+      const data = await res.json();
+      renderMessages(data);
+    }
+  } catch(e) {
+    console.error('Chat load error:', e);
   }
+}
+
+/* ── IMAGE UPLOAD ── */
+let pendingFile = null;
+
+document.getElementById('upload-btn').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingFile = file;
+  document.getElementById('upload-preview-name').textContent = file.name;
+  document.getElementById('upload-preview').style.display = 'flex';
+  e.target.value = '';
+});
+
+document.getElementById('upload-clear').addEventListener('click', () => {
+  pendingFile = null;
+  document.getElementById('upload-preview').style.display = 'none';
+  document.getElementById('upload-preview-name').textContent = '';
+});
+
+async function uploadImage(file) {
+  const ext = file.name.split('.').pop();
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/chat-images/${path}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': file.type,
+    },
+    body: file
+  });
+  if (!res.ok) throw new Error('Upload failed');
+  return `${SUPABASE_URL}/storage/v1/object/public/chat-images/${path}`;
 }
 
 async function sendMessage() {
@@ -1189,26 +1315,49 @@ async function sendMessage() {
   const inputEl = document.getElementById('chat-input');
   const name = (nameEl.value.trim() || 'anon').toLowerCase();
   const text = inputEl.value.trim();
-  if (!text) return;
+  if (!text && !pendingFile) return;
   inputEl.value = '';
+
+  let image_url = null;
+  const fileToUpload = pendingFile;
+
+  /* clear pending file immediately */
+  pendingFile = null;
+  document.getElementById('upload-preview').style.display = 'none';
+  document.getElementById('upload-preview-name').textContent = '';
+
   /* optimistically add to UI */
   const container = document.getElementById('chat-messages');
   const div = document.createElement('div');
   div.className = 'msg';
+  const tempImageHtml = fileToUpload
+    ? `<div class="msg-text" style="color:var(--mid);font-size:0.65rem;">uploading image…</div>`
+    : '';
   div.innerHTML = `
     <div class="msg-meta">
       <span class="msg-name">${name}</span>
       <span class="msg-time">${timeStr()}</span>
     </div>
-    <div class="msg-text">${text}</div>
+    ${text ? `<div class="msg-text">${text}</div>` : ''}
+    ${tempImageHtml}
   `;
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
+
+  /* upload image if present */
+  if (fileToUpload) {
+    try {
+      image_url = await uploadImage(fileToUpload);
+    } catch(e) {
+      console.error('Image upload error:', e);
+    }
+  }
+
   /* send to Supabase */
   await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
     method: 'POST',
     headers: { ...HEADERS, 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ name, text })
+    body: JSON.stringify({ name, text: text || '', image_url })
   });
 }
 

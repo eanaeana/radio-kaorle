@@ -1186,9 +1186,9 @@ async function fetchNowPlaying() {
       artistEl.textContent = artist;
     }
 
-    /* ── LOCATION ── read from current calendar event, fall back to Vienna */
+    /* ── LOCATION ── read from current calendar event, dash when nothing is live */
     const scheduleEl = document.getElementById('stream-location');
-    let location = 'Vienna';
+    let location = '—';
     try {
       const schedRes = await fetch('schedule.json?t=' + Date.now());
       if (schedRes.ok) {

@@ -1,3 +1,20 @@
+name: Update Schedule
+on:
+  schedule:
+    - cron: '0 * * * *'  # runs every hour
+  workflow_dispatch:       # allows manual trigger from GitHub
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install pytz
+        run: pip install pytz
+      - name: Fetch calendar and write schedule.json
+        run: |
+          python3 << 'EOF'
           import urllib.request, re, json, pytz
           from datetime import datetime, timedelta
           ICAL_URL = "https://calendar.google.com/calendar/ical/97457878b7aa6ff2c06ec9f1aa1e9651fca7fbf607f8d1dbcfc20c9ca40d081d%40group.calendar.google.com/public/basic.ics"
@@ -58,3 +75,11 @@
           print(f"Wrote {len(events)} events to schedule.json")
           for e in events:
               print(e["start"], e["name"])
+          EOF
+      - name: Commit schedule.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add schedule.json
+          git diff --staged --quiet || git commit -m "update schedule"
+          git pull --rebase && git push

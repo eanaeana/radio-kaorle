@@ -70,13 +70,15 @@ jobs:
               end   = parse_dt(get_with_params("DTEND")) or start
               name  = get("SUMMARY").replace("\\,", ",").replace("\\n", " ")
               desc  = get("DESCRIPTION").replace("\\,", ",").replace("\\n", " ")
+              loc   = get("LOCATION").replace("\\,", ",").replace("\\n", " ")
 
-              if start and end >= now and start <= week_ahead:
-                  events.append({
-                      "start": start.strftime("%Y-%m-%dT%H:%M:%S"),
-                      "end":   end.strftime("%Y-%m-%dT%H:%M:%S"),
-                      "name":  name,
-                      "host":  desc
+                  if start and end >= now and start <= week_ahead:
+                    events.append({
+                        "start":    start.strftime("%Y-%m-%dT%H:%M:%S"),
+                        "end":      end.strftime("%Y-%m-%dT%H:%M:%S"),
+                        "name":     name,
+                        "host":     desc,
+                        "location": loc if loc else "Vienna"
                   })
 
           events.sort(key=lambda e: e["start"])

@@ -508,7 +508,48 @@
 
   .upload-preview-clear:hover { color: var(--black); }
 
-  /* ── FOOTER ── */
+  /* ── ACTION BUTTONS ── */
+  .action-buttons {
+    display: flex;
+    margin-left: -1px;
+    margin-right: -1px;
+  }
+
+  .action-btn {
+    flex: 1;
+    background: var(--white);
+    padding: 0.45rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--black);
+    text-decoration: none;
+    transition: opacity 0.15s;
+    border: none;
+  }
+
+  .action-btn:hover {
+    opacity: 0.6;
+    background: var(--white);
+    text-decoration: none;
+  }
+
+  .action-btn svg {
+    width: 11px;
+    height: 11px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 640px) {
+    .action-buttons { flex-direction: column; }
+  }
   .page-footer {
     margin-top: 2.5rem;
     padding-top: 1.5rem;
@@ -1013,6 +1054,11 @@
 </svg>
     <h1 id="header-title" style="transition:color 0.6s ease;">Radio Kaorle</h1>
     <p>DIY community radio at Pavillon 21 — Otto Wagner Areal, Vienna</p>
+    <p style="margin-top:0.4rem;font-size:0.65rem;color:var(--mid);letter-spacing:0.04em;">
+      <a href="YOUR_TELEGRAM_LINK_HERE" target="_blank" rel="noopener" style="color:var(--black);text-decoration:underline;">join our friends club</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:YOUR_EMAIL_HERE" style="color:var(--black);text-decoration:underline;">contact</a>
+    </p>
   </header>
 
   <div class="main-grid">
@@ -1251,7 +1297,7 @@ function renderMessages(msgs) {
     const div = document.createElement('div');
     div.className = 'msg';
     const imageHtml = msg.image_url
-      ? `<img class="msg-image" src="${msg.image_url}" alt="uploaded image" onclick="window.open('${msg.image_url}','_blank')">`
+      ? `<img class="msg-image" src="${msg.image_url}" alt="uploaded image" loading="lazy" onclick="window.open('${msg.image_url}','_blank')">`
       : '';
     const textHtml = msg.text
       ? `<div class="msg-text">${msg.text}</div>`
@@ -1310,15 +1356,32 @@ document.getElementById('upload-clear').addEventListener('click', () => {
   document.getElementById('upload-preview-name').textContent = '';
 });
 
+async function compressImage(file) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 800;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob => resolve(new File([blob], 'image.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.6);
+    };
+    img.src = url;
+  });
+}
+
 async function uploadImage(file) {
-  const ext = file.name.split('.').pop();
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/chat-images/${path}`, {
     method: 'POST',
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': file.type,
+      'Content-Type': 'image/jpeg',
     },
     body: file
   });
@@ -1363,7 +1426,8 @@ async function sendMessage() {
   /* upload image if present */
   if (fileToUpload) {
     try {
-      image_url = await uploadImage(fileToUpload);
+      const compressed = await compressImage(fileToUpload);
+      image_url = await uploadImage(compressed);
     } catch(e) {
       console.error('Image upload error:', e);
     }
@@ -1377,9 +1441,9 @@ async function sendMessage() {
   });
 }
 
-/* poll for new messages every 5 seconds */
+/* poll for new messages every 15 seconds */
 loadMessages();
-setInterval(loadMessages, 5000);
+setInterval(loadMessages, 15000);
 
 document.getElementById('chat-send').addEventListener('click', sendMessage);
 document.getElementById('chat-input').addEventListener('keydown', e => {
